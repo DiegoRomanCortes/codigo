@@ -4,6 +4,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scienceplots
 from scipy.linalg import eigh, expm
+from scipy.integrate import solve_ivp
 
 
 V = 2
@@ -17,71 +18,65 @@ alpha = 0.01
 kx = 1.55
 ky = 1.55
 # Escala Thorlabs
-colors = ['blue', 'black', 'red']
-nodes = [0.0, 0.5, 1.0]
-bkr = LinearSegmentedColormap.from_list("thorlabs", list(zip(nodes, colors)))
+colors = ['black', 'blue', '#00FFFF', '#00FF00', '#FFFF00', 'orange', 'red', '#FF00FF', 'white']
+nodes = [0.0, 1/9 + 0.02, 0.2 + 0.09, 23/63 + 0.06, 12/21, 47/63 - 0.1, 55/63 - 0.15, 0.88, 1.0]
+thorlabs = LinearSegmentedColormap.from_list("thorlabs", list(zip(nodes, colors)))
 
 plt.style.use(['science', 'ieee'])
-n = np.arange(-(N_GUIAS-1)//2, (N_GUIAS+1)//2)
 
+guias = np.zeros((N_GUIAS+1, N_GUIAS, 2))
 
-
-
-guias = np.zeros((N_GUIAS**2+1, 2))
-for i in range(N_GUIAS):
+for i in range(N_GUIAS+1):
     for j in range(N_GUIAS):
-        guias[i+N_GUIAS*j, 0] = n[i]
-        guias[i+N_GUIAS*j, 1] = n[j]
+        guias[i, j, 0] = 1
+        guias[i, j, 1] = 1
+        if i == N_GUIAS and j == N_GUIAS - 1:
+            guias[i, j, 0] = 0
+            guias[i, j, 1] = 0
 
 # setting manually coordinates of impurity at the end of the array
-guias[-1, 0] = 0
-guias[-1, 1] = 0
+guias[N_GUIAS, 0, 0] = 1
+guias[N_GUIAS, 0, 1] = 1
 
-# fig0, ax0 = plt.subplots(1, 1)
-# ax0.scatter(guias[:-1, 0], guias[:-1, 1], c='red', edgecolors='grey')
-# ax0.scatter(guias[-1, 0], guias[-1, 1], c='blue', edgecolors='grey')
-# plt.tight_layout()
-# fig0.show()
 # plt.close('all')
 
-N_TOTAL = len(guias[:, 0])
+# N_TOTAL = len(guias[:, 0])
 
-Cmat = np.zeros((N_TOTAL, N_TOTAL))
-for i in range(N_TOTAL):
-    Cmat[i, :] = np.sqrt((guias[i, 0] - guias[:, 0])**2 + (guias[i, 1] - guias[:, 1])**2)
-
-
-Cmat[Cmat > 1] = 0
-Cmat[Cmat == 1] = V
-
-Cmat[-1, :] = 0
-Cmat[:, -1] = 0
-Cmat[(N_GUIAS + 1)*N_GUIAS//2, -1] = e
-Cmat[-1, (N_GUIAS + 1)*N_GUIAS//2] = e
-Cmat[-1, -1] = E
-
-
-w, v = eigh(Cmat)
-
-
-
-z = np.linspace(0, Z_MAX)
-u_0 = np.zeros(N_TOTAL, dtype=complex)
-for i in range(N_GUIAS):
+# z = np.linspace(0, Z_MAX)
+u_0 = np.zeros((N_GUIAS+1, N_GUIAS), dtype=complex)
+for i in range(N_GUIAS+1):
     for j in range(N_GUIAS):
-        x = -N_GUIAS//2 + i
-        y = -N_GUIAS//2 + j
-        u_0[i+N_GUIAS*j] = A * np.exp(-alpha*(x**2 + y**2)) * np.exp(1j*(kx*x + ky*y))
-u_prop = np.zeros((N_TOTAL, len(z)), dtype=complex)
+        x = -N_GUIAS//4 + i
+        y = -N_GUIAS//4 + j
+        u_0[i, j] = A * np.exp(-alpha*(x**2 + y**2)) * np.exp(1j*(kx*x + ky*y))
 
-for idx, i in enumerate(z):
-    u_prop[:, idx] = expm(-1j*Cmat*i) @ u_0
+def diff(z, u_vec):
+    output = np.zeros((N_GUIAS + 1, N_GUIAS), dtype=complex)
+    u_vec = np.reshape(u_vec, output.shape)
+    for i in range(N_GUIAS + 1):
+        for j in range(N_GUIAS):
+            if np.abs(i-N_GUIAS/2) <= N_GUIAS/2 - 2 and np.abs(j-N_GUIAS/2) <= N_GUIAS/2 - 2: 
+                output[i, j] = 1j * (u_vec[i+1, j] + u_vec[i-1, j] + u_vec[i, j+1] + u_vec[i, j-1]) * V
+            if np.abs(i-N_GUIAS/2) <= 1 and np.abs(j-N_GUIAS/2) <= 1:
+                output[i, j] = 1j * ((u_vec[i+1, j] + u_vec[i-1, j] + u_vec[i, j+1] + u_vec[i, j-1]) * V + e * u_vec[N_GUIAS, 0])
+                output[N_GUIAS, 0] = 1j*(E*u_vec[N_GUIAS, 0] + e*u_vec[i, j])
+    return output.flatten()
 
-fig, ax = plt.subplots(1, 1)
+z = np.linspace(0, Z_MAX, num=100) 
+sol = solve_ivp(diff, (0, Z_MAX), u_0.flatten(), t_eval=z)
 
-ax.scatter(guias[:, 0], guias[:, 1], c=np.abs(u_prop[:, -1])**2, s=0.1)
-ax.set_aspect('equal')
-fig.show()
+frames = 60
+for i in range(frames):
+    fig, ax = plt.subplots(1, 1)
+    im = ax.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[:, :, i*len(z)//frames])**2), cmap=thorlabs, interpolation="kaiser")
+    ax.set_aspect('equal')
+    ax.set_title(r"$z = {}$".format(np.round(z[i*len(z)//frames]), 3))
+    fig.colorbar(im)
+    if i < 10:
+        fig.savefig("z_0{}.png".format(i))
+    else:
+        fig.savefig("z_{}.png".format(i))
+    plt.close("all")
 
 
 print()
