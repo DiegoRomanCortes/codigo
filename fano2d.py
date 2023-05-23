@@ -11,7 +11,7 @@ V = 2
 E = 0.1
 e = 1
 Z_MAX = 10
-N_GUIAS = 81#11 + center impurity
+N_GUIAS = 121#11 + center impurity
 
 A = 0.1
 alpha = 0.01
@@ -44,7 +44,7 @@ guias[N_GUIAS, 0, 1] = 1
 
 # z = np.linspace(0, Z_MAX)
 u_0 = np.zeros((N_GUIAS+1, N_GUIAS), dtype=complex)
-for i in range(N_GUIAS+1):
+for i in range(N_GUIAS):
     for j in range(N_GUIAS):
         x = -N_GUIAS//4 + i
         y = -N_GUIAS//4 + j
@@ -57,7 +57,7 @@ def diff(z, u_vec):
         for j in range(N_GUIAS):
             if np.abs(i-N_GUIAS/2) <= N_GUIAS/2 - 2 and np.abs(j-N_GUIAS/2) <= N_GUIAS/2 - 2: 
                 output[i, j] = 1j * (u_vec[i+1, j] + u_vec[i-1, j] + u_vec[i, j+1] + u_vec[i, j-1]) * V
-            if np.abs(i-N_GUIAS/2) <= 1 and np.abs(j-N_GUIAS/2) <= 1:
+            if i == N_GUIAS//2 and j == N_GUIAS//2:
                 output[i, j] = 1j * ((u_vec[i+1, j] + u_vec[i-1, j] + u_vec[i, j+1] + u_vec[i, j-1]) * V + e * u_vec[N_GUIAS, 0])
                 output[N_GUIAS, 0] = 1j*(E*u_vec[N_GUIAS, 0] + e*u_vec[i, j])
     return output.flatten()
@@ -65,13 +65,14 @@ def diff(z, u_vec):
 z = np.linspace(0, Z_MAX, num=100) 
 sol = solve_ivp(diff, (0, Z_MAX), u_0.flatten(), t_eval=z)
 
-frames = 60
+frames = 20
 for i in range(frames):
-    fig, ax = plt.subplots(1, 1)
-    im = ax.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[:, :, i*len(z)//frames])**2), cmap=thorlabs, interpolation="kaiser")
-    ax.set_aspect('equal')
-    ax.set_title(r"$z = {}$".format(np.round(z[i*len(z)//frames]), 3))
-    fig.colorbar(im)
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    im = ax1.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[:N_GUIAS, :, i*len(z)//frames])**2), cmap=thorlabs, interpolation="none", origin='lower', vmin=0, vmax=A**2)
+    ax1.set_aspect('equal')
+    ax1.set_title(r"$z = {}$".format(np.round(z[i*len(z)//frames]), 2))
+    ax2.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[-1, 0, i*len(z)//frames])**2)*np.ones((N_GUIAS, N_GUIAS)), cmap=thorlabs, interpolation="none", origin='lower', vmin=0, vmax=A**2)
+    fig.colorbar(im, ax=(ax1, ax2))
     if i < 10:
         fig.savefig("z_0{}.png".format(i))
     else:
