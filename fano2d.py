@@ -10,8 +10,8 @@ from scipy.integrate import solve_ivp
 V = 2
 E = 0.1
 e = 1
-Z_MAX = 10
-N_GUIAS = 121#11 + center impurity
+Z_MAX = 12
+N_GUIAS = 91#11 + center impurity
 
 A = 0.1
 alpha = 0.01
@@ -67,12 +67,36 @@ sol = solve_ivp(diff, (0, Z_MAX), u_0.flatten(), t_eval=z)
 
 frames = 20
 for i in range(frames):
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    im = ax1.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[:N_GUIAS, :, i*len(z)//frames])**2), cmap=thorlabs, interpolation="none", origin='lower', vmin=0, vmax=A**2)
+    fig, (ax1, ax2) = plt.subplots(1, 2, layout='constrained')
+    im = ax1.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[:N_GUIAS, :, i*len(z)//frames])**2), cmap=thorlabs, interpolation="bicubic", origin='lower', vmin=0, vmax=0.75 * A**2, extent=[0, N_GUIAS, 0, N_GUIAS])
     ax1.set_aspect('equal')
     ax1.set_title(r"$z = {}$".format(np.round(z[i*len(z)//frames]), 2))
-    ax2.imshow(np.transpose(np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[-1, 0, i*len(z)//frames])**2)*np.ones((N_GUIAS, N_GUIAS)), cmap=thorlabs, interpolation="none", origin='lower', vmin=0, vmax=A**2)
-    fig.colorbar(im, ax=(ax1, ax2))
+    ax1.set_xlabel(r'$n$')
+    ax1.set_ylabel(r'$m$')
+    
+    ax1.spines['bottom'].set_color('black')
+    ax1.spines['top'].set_color('black')
+    ax1.spines['left'].set_color('black')
+    ax1.spines['right'].set_color('black')
+
+    ax1.xaxis.label.set_color('black')
+    ax1.tick_params(axis='x', colors='white')
+    ax1.tick_params(axis='x', which='minor', colors='white')
+
+    ax1.yaxis.label.set_color('black')
+    ax1.tick_params(axis='y', colors='white')
+    ax1.tick_params(axis='y', which='minor', colors='white')
+
+    ax2.plot(z, np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[-1, 0, :])**2)
+    ax2.scatter(z[i*len(z)//frames], np.abs(np.reshape(sol.y, (N_GUIAS + 1, N_GUIAS, sol.t.size))[-1, 0, i*len(z)//frames])**2, marker='o')
+    ax2.set_xlabel(r'Propagation distance $z$')
+    ax2.yaxis.tick_right()
+    ax2.yaxis.set_ticks_position('both')
+    ax2.yaxis.set_label_position('right')
+    ax2.set_ylabel(r'Power of impurity $|\psi|^2$')
+    
+    ax2.set_aspect('auto')
+    fig.colorbar(im, ax=ax1, shrink=0.5)
     if i < 10:
         fig.savefig("z_0{}.png".format(i))
     else:
